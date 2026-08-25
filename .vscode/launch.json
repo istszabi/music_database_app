@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "music_database_app",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=TICKETMASTER_API_KEY=0RN10ckid6B19fnLPg0NbEFEr9EZA0vn"
+      ]
+    }
+  ]
+}
