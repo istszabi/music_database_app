@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'catalog_screen.dart';
 import 'favorites_screen.dart';
 import 'scanner_screen.dart';
-import 'map_screen.dart';
 import 'settings_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -15,19 +14,18 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    CatalogScreen(),
-    FavoritesScreen(),
-    ScannerScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: [
+          const CatalogScreen(),
+          const FavoritesScreen(),
+          // Camera only mounts and runs when the Scan tab is actively selected
+          _currentIndex == 2 ? const ScannerScreen() : const SizedBox.shrink(),
+          const SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,

@@ -21,7 +21,6 @@ class SpotifyService {
       return _accessToken;
     }
 
-    debugPrint('[Spotify Auth] Requesting fresh access token from Spotify...');
     try {
       final String basicAuth = base64Encode(
         utf8.encode('${clientId.trim()}:${clientSecret.trim()}'),
@@ -35,8 +34,6 @@ class SpotifyService {
         },
         body: {'grant_type': 'client_credentials'},
       );
-
-      debugPrint('[Spotify Auth] Response Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -67,6 +64,108 @@ class SpotifyService {
   }
 
   // ---------------------------------------------------------------------------
+  // UNIFIED CATALOG SEARCH (ARTISTS + ALBUMS)
+  // ---------------------------------------------------------------------------
+  static Future<Map<String, dynamic>> searchCatalog(String query) async {
+    final cleanQuery = query
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
+        .trim();
+
+    if (cleanQuery.isEmpty) {
+      return {
+        'artists': <Map<String, dynamic>>[],
+        'albums': <Map<String, dynamic>>[],
+      };
+    }
+
+    final token = await _getAccessToken();
+    if (token == null) {
+      return {
+        'artists': <Map<String, dynamic>>[],
+        'albums': <Map<String, dynamic>>[],
+      };
+    }
+
+    final uri = Uri.https('api.spotify.com', '/v1/search', {
+      'q': cleanQuery,
+      'type': 'album,artist',
+    });
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        final List rawArtists = data['artists']?['items'] ?? [];
+        final List<Map<String, dynamic>>
+        artists = rawArtists.map<Map<String, dynamic>>((item) {
+          final images = item['images'] as List? ?? [];
+          final photoUrl = images.isNotEmpty ? images[0]['url'] : '';
+          final rawGenres = item['genres'] as List? ?? [];
+          final genre = rawGenres.isNotEmpty
+              ? rawGenres.first.toString().toUpperCase()
+              : 'ARTIST';
+
+          final artistModel = Artist(
+            id: item['id'] ?? '',
+            name: item['name'] ?? 'Unknown Artist',
+            genre: genre,
+            biography: '${item['name']} is on Spotify.',
+            wikipediaUrl:
+                'https://en.wikipedia.org/wiki/${Uri.encodeComponent((item['name'] ?? '').replaceAll(' ', '_'))}',
+            albums: const [],
+            upcomingConcerts: const [],
+            imageUrl: photoUrl.isNotEmpty ? photoUrl : null,
+          );
+
+          return {
+            'artist': artistModel,
+            'photoUrl': photoUrl,
+            'followers': item['followers']?['total'] ?? 0,
+          };
+        }).toList();
+
+        final List rawAlbums = data['albums']?['items'] ?? [];
+        final List<Map<String, dynamic>>
+        albums = rawAlbums.map<Map<String, dynamic>>((item) {
+          final album = _parseAlbum(item);
+          final artistList = item['artists'] as List? ?? [];
+          final artistName = artistList.isNotEmpty
+              ? artistList[0]['name']
+              : 'Unknown Artist';
+          final artistId = artistList.isNotEmpty ? artistList[0]['id'] : '';
+
+          final artist = Artist(
+            id: artistId,
+            name: artistName,
+            genre: 'Music',
+            biography: '$artistName on Spotify.',
+            wikipediaUrl:
+                'https://en.wikipedia.org/wiki/${Uri.encodeComponent(artistName.replaceAll(' ', '_'))}',
+            albums: [album],
+            upcomingConcerts: const [],
+          );
+
+          return {'album': album, 'artist': artist};
+        }).toList();
+
+        return {'artists': artists, 'albums': albums};
+      }
+    } catch (e) {
+      debugPrint('[Spotify Search Catalog Exception] $e');
+    }
+
+    return {
+      'artists': <Map<String, dynamic>>[],
+      'albums': <Map<String, dynamic>>[],
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // SEARCH ARTISTS (GET /v1/search?type=artist)
   // ---------------------------------------------------------------------------
   static Future<List<Artist>> searchArtists(String query) async {
@@ -76,37 +175,24 @@ class SpotifyService {
 
     if (cleanQuery.isEmpty) return [];
 
-    String? token = await _getAccessToken();
+    final token = await _getAccessToken();
     if (token == null) return [];
 
     final searchUri = Uri.https('api.spotify.com', '/v1/search', {
       'q': cleanQuery,
       'type': 'artist',
-      'limit': '10',
     });
 
     try {
-      var response = await http.get(
+      final response = await http.get(
         searchUri,
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (response.statusCode == 401) {
-        token = await _getAccessToken(forceRefresh: true);
-        if (token != null) {
-          response = await http.get(
-            searchUri,
-            headers: {'Authorization': 'Bearer $token'},
-          );
-        }
-      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List items = data['artists']?['items'] ?? [];
         return items.map<Artist>((item) => _parseArtist(item)).toList();
-      } else {
-        debugPrint('[Spotify Artist Search Error] ${response.body}');
       }
     } catch (e) {
       debugPrint('[Spotify Artist Search Exception] $e');
@@ -124,11 +210,8 @@ class SpotifyService {
 
     if (cleanQuery.isEmpty) return [];
 
-    String? token = await _getAccessToken();
-    if (token == null) {
-      debugPrint('[Spotify API Error] Could not retrieve access token');
-      return [];
-    }
+    final token = await _getAccessToken();
+    if (token == null) return [];
 
     final searchUri = Uri.https('api.spotify.com', '/v1/search', {
       'q': cleanQuery,
@@ -136,20 +219,10 @@ class SpotifyService {
     });
 
     try {
-      var response = await http.get(
+      final response = await http.get(
         searchUri,
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (response.statusCode == 401) {
-        token = await _getAccessToken(forceRefresh: true);
-        if (token != null) {
-          response = await http.get(
-            searchUri,
-            headers: {'Authorization': 'Bearer $token'},
-          );
-        }
-      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -157,20 +230,11 @@ class SpotifyService {
 
         return items.map<Map<String, dynamic>>((item) {
           final album = _parseAlbum(item);
-          final artistName = (item['artists'] as List).isNotEmpty
-              ? item['artists'][0]['name']
+          final artistList = item['artists'] as List? ?? [];
+          final artistName = artistList.isNotEmpty
+              ? artistList[0]['name']
               : 'Unknown Artist';
-          final artistId = (item['artists'] as List).isNotEmpty
-              ? item['artists'][0]['id']
-              : '';
-
-          final artistImages = (item['artists'] as List).isNotEmpty
-              ? item['artists'][0]['images'] as List?
-              : null;
-          final artistImageUrl =
-              (artistImages != null && artistImages.isNotEmpty)
-              ? artistImages[0]['url'] as String?
-              : null;
+          final artistId = artistList.isNotEmpty ? artistList[0]['id'] : '';
 
           final artist = Artist(
             id: artistId,
@@ -181,13 +245,10 @@ class SpotifyService {
                 'https://en.wikipedia.org/wiki/${Uri.encodeComponent(artistName.replaceAll(' ', '_'))}',
             albums: [album],
             upcomingConcerts: const [],
-            imageUrl: artistImageUrl,
           );
 
           return {'album': album, 'artist': artist};
         }).toList();
-      } else {
-        debugPrint('[Spotify Search Error Body] ${response.body}');
       }
     } catch (e) {
       debugPrint('[Spotify Search Exception] $e');
@@ -205,26 +266,16 @@ class SpotifyService {
 
     if (cleanId.isEmpty) return null;
 
-    String? token = await _getAccessToken();
+    final token = await _getAccessToken();
     if (token == null) return null;
 
     final artistUri = Uri.https('api.spotify.com', '/v1/artists/$cleanId');
 
     try {
-      var response = await http.get(
+      final response = await http.get(
         artistUri,
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (response.statusCode == 401) {
-        token = await _getAccessToken(forceRefresh: true);
-        if (token != null) {
-          response = await http.get(
-            artistUri,
-            headers: {'Authorization': 'Bearer $token'},
-          );
-        }
-      }
 
       if (response.statusCode == 200) {
         final item = jsonDecode(response.body);
@@ -239,34 +290,31 @@ class SpotifyService {
   // ---------------------------------------------------------------------------
   // GET AN ARTIST'S ALBUMS (GET /v1/artists/{id}/albums)
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // GET AN ARTIST'S ALBUMS (GET /v1/artists/{id}/albums)
+  // ---------------------------------------------------------------------------
   static Future<List<Album>> getArtistAlbums(
     String artistId, {
     String? artistName,
   }) async {
-    debugPrint(
-      '\n--- [Spotify getArtistAlbums] artistId="$artistId", artistName="$artistName" ---',
-    );
-
     final token = await _getAccessToken();
-    if (token == null) {
-      debugPrint('[Spotify Discography] ❌ No access token — returning []');
-      return [];
-    }
+    if (token == null) return [];
 
-    String resolvedId = artistId.trim();
-    debugPrint(
-      '[Spotify Discography] Initial id="$resolvedId" (length=${resolvedId.length})',
-    );
+    String resolvedId = artistId
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), '')
+        .trim();
 
     // 1. Resolve true Spotify Artist ID if artistId is from mock data
     if (resolvedId.length < 15 && artistName != null && artistName.isNotEmpty) {
-      debugPrint(
-        '[Spotify Discography] id looks like a mock id, resolving via name search...',
-      );
       try {
-        final searchUri = Uri.parse(
-          'https://api.spotify.com/v1/search?q=${Uri.encodeComponent(artistName)}&type=artist&limit=1',
-        );
+        final cleanName = artistName
+            .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
+            .trim();
+        final searchUri = Uri.https('api.spotify.com', '/v1/search', {
+          'q': cleanName,
+          'type': 'artist',
+          'limit': '1',
+        });
         final searchRes = await http.get(
           searchUri,
           headers: {'Authorization': 'Bearer $token'},
@@ -276,144 +324,221 @@ class SpotifyService {
           final items = data['artists']?['items'] as List?;
           if (items != null && items.isNotEmpty) {
             resolvedId = items.first['id'];
-            debugPrint(
-              '[Spotify Discography] Resolved id="$resolvedId" via name search',
-            );
-          } else {
-            debugPrint(
-              '[Spotify Discography] Name search returned 0 artists for "$artistName"',
-            );
           }
-        } else {
-          debugPrint(
-            '[Spotify Discography] Name search HTTP ${searchRes.statusCode}: ${searchRes.body}',
-          );
         }
       } catch (e) {
-        debugPrint('[Spotify Discography] Name search exception: $e');
+        debugPrint('[Spotify Discography] ID resolution error: $e');
       }
     }
 
-    // 2. Query official artist albums
+    // 2. Fetch full catalog across multiple pages (up to 100 releases)
     if (resolvedId.length >= 15) {
       try {
-        final uri = Uri.parse(
-          'https://api.spotify.com/v1/artists/$resolvedId/albums'
-          '?include_groups=album,single&limit=20',
-        );
-        debugPrint('[Spotify Discography] Requesting: $uri');
+        final List<dynamic> allRawItems = [];
 
-        final response = await http.get(
-          uri,
+        // Page 1 (first 50 items: studio albums & singles)
+        final uriPage1 = Uri.https(
+          'api.spotify.com',
+          '/v1/artists/$resolvedId/albums',
+          {'include_groups': 'album,single', 'limit': '50', 'offset': '0'},
+        );
+
+        final res1 = await http.get(
+          uriPage1,
           headers: {
             'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
           },
         );
 
-        debugPrint(
-          '[Spotify Discography] Response status: ${response.statusCode}',
-        );
+        if (res1.statusCode == 200) {
+          final data1 = jsonDecode(res1.body);
+          final List items1 = data1['items'] ?? [];
+          allRawItems.addAll(items1);
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final List items = data['items'] ?? [];
-          final total = data['total'];
-          debugPrint(
-            '[Spotify Discography] Raw items returned: ${items.length} '
-            '(API reports total=$total available)',
-          );
+          final int total = data1['total'] ?? items1.length;
 
-          if (items.isNotEmpty) {
-            final parsed = items
-                .map<Album>((item) => _parseAlbum(item))
-                .toList();
-
-            final seen = <String>{};
-            final List<Album> unique = [];
-            for (final a in parsed) {
-              final cleanTitle = a.title
-                  .toLowerCase()
-                  .split('(')
-                  .first
-                  .split('[')
-                  .first
-                  .replaceAll(
-                    RegExp(r'\b(deluxe|remastered|edition|version)\b'),
-                    '',
-                  )
-                  .trim();
-              if (cleanTitle.isNotEmpty && seen.add(cleanTitle)) {
-                unique.add(a);
-              } else {
-                debugPrint(
-                  '[Spotify Discography] Deduped out: "${a.title}" '
-                  '(normalized to "$cleanTitle", already seen)',
-                );
-              }
+          // Page 2 (next 50 items if the artist has > 50 releases)
+          if (total > 50) {
+            final uriPage2 = Uri.https(
+              'api.spotify.com',
+              '/v1/artists/$resolvedId/albums',
+              {'include_groups': 'album,single', 'limit': '50', 'offset': '50'},
+            );
+            final res2 = await http.get(
+              uriPage2,
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+            );
+            if (res2.statusCode == 200) {
+              final data2 = jsonDecode(res2.body);
+              final List items2 = data2['items'] ?? [];
+              allRawItems.addAll(items2);
             }
-            debugPrint(
-              '[Spotify Discography] ✅ After dedup: ${unique.length} unique albums '
-              '(started from ${parsed.length} raw items)',
-            );
-            return unique;
-          } else {
-            debugPrint(
-              '[Spotify Discography] items array was empty despite 200 response',
-            );
           }
         } else {
-          debugPrint('[Spotify Discography] Non-200 body: ${response.body}');
+          // Fallback without group filters if region restricted
+          final fallbackUri = Uri.https(
+            'api.spotify.com',
+            '/v1/artists/$resolvedId/albums',
+          );
+          final fallbackRes = await http.get(
+            fallbackUri,
+            headers: {'Authorization': 'Bearer $token'},
+          );
+          if (fallbackRes.statusCode == 200) {
+            final data = jsonDecode(fallbackRes.body);
+            allRawItems.addAll(data['items'] ?? []);
+          }
+        }
+
+        if (allRawItems.isNotEmpty) {
+          final parsed = allRawItems
+              .map<Album>((item) => _parseAlbum(item))
+              .toList();
+
+          // Deduplicate duplicate Deluxe/Remaster editions of the same album
+          final seenTitles = <String>{};
+          final List<Album> uniqueAlbums = [];
+
+          for (final album in parsed) {
+            final normalized = album.title
+                .toLowerCase()
+                .split('(')
+                .first
+                .split('[')
+                .first
+                .replaceAll(
+                  RegExp(
+                    r'\b(deluxe|remastered|expanded|edition|version|anniversary)\b',
+                  ),
+                  '',
+                )
+                .trim();
+
+            final key = normalized.isNotEmpty
+                ? normalized
+                : album.title.toLowerCase().trim();
+            if (seenTitles.add(key)) {
+              uniqueAlbums.add(album);
+            }
+          }
+
+          // Sort descending by release year (newest first)
+          uniqueAlbums.sort((a, b) {
+            final yearA = int.tryParse(a.releaseYear) ?? 0;
+            final yearB = int.tryParse(b.releaseYear) ?? 0;
+            return yearB.compareTo(yearA);
+          });
+
+          return uniqueAlbums;
         }
       } catch (e) {
         debugPrint('[Spotify Discography Exception] $e');
       }
-    } else {
-      debugPrint(
-        '[Spotify Discography] ❌ Could not resolve a real Spotify id '
-        '(still "$resolvedId", length ${resolvedId.length}) — skipping direct query.',
-      );
     }
 
-    // 3. Fallback: Search albums by artist name
+    // 3. Fallback: Search all albums by artist name
     if (artistName != null && artistName.isNotEmpty) {
-      debugPrint(
-        '[Spotify Discography] Falling back to album search by name...',
-      );
       try {
-        final searchUri = Uri.parse(
-          'https://api.spotify.com/v1/search?q=artist:${Uri.encodeComponent(artistName)}&type=album&limit=20',
-        );
+        final cleanName = artistName
+            .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
+            .trim();
+        final searchUri = Uri.https('api.spotify.com', '/v1/search', {
+          'q': 'artist:$cleanName',
+          'type': 'album',
+          'limit': '50',
+        });
         final response = await http.get(
           searchUri,
           headers: {'Authorization': 'Bearer $token'},
         );
-        debugPrint(
-          '[Spotify Discography] Fallback search status: ${response.statusCode}',
-        );
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           final List items = data['albums']?['items'] ?? [];
-          debugPrint(
-            '[Spotify Discography] Fallback raw items: ${items.length}',
-          );
           final parsed = items.map<Album>((item) => _parseAlbum(item)).toList();
           final seen = <String>{};
-          final result = parsed
-              .where((a) => seen.add(a.title.toLowerCase().trim()))
-              .toList();
-          debugPrint(
-            '[Spotify Discography] Fallback after dedup: ${result.length}',
-          );
-          return result;
+          final unique = parsed.where((a) {
+            final norm = a.title
+                .toLowerCase()
+                .split('(')
+                .first
+                .split('[')
+                .first
+                .trim();
+            return norm.isNotEmpty && seen.add(norm);
+          }).toList();
+
+          unique.sort((a, b) {
+            final yearA = int.tryParse(a.releaseYear) ?? 0;
+            final yearB = int.tryParse(b.releaseYear) ?? 0;
+            return yearB.compareTo(yearA);
+          });
+
+          return unique;
         }
       } catch (e) {
-        debugPrint('[Spotify Discography] Fallback exception: $e');
+        debugPrint('[Spotify Discography Search Fallback Exception] $e');
       }
     }
 
-    debugPrint('[Spotify Discography] ❌ All paths exhausted, returning []');
     return [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET AN ARTIST'S PROFILE (GET /v1/artists/{id})
+  // ---------------------------------------------------------------------------
+  static Future<Map<String, dynamic>?> getArtistProfile(
+    String artistId,
+    String artistName,
+  ) async {
+    final token = await _getAccessToken();
+    if (token == null) return null;
+
+    final cleanId = artistId
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), '')
+        .trim();
+
+    if (cleanId.length > 15) {
+      final idUri = Uri.https('api.spotify.com', '/v1/artists/$cleanId');
+      try {
+        final response = await http.get(
+          idUri,
+          headers: {'Authorization': 'Bearer $token'},
+        );
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body);
+        }
+      } catch (_) {}
+    }
+
+    final cleanName = artistName
+        .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
+        .trim();
+    if (cleanName.isNotEmpty) {
+      final searchUri = Uri.https('api.spotify.com', '/v1/search', {
+        'q': cleanName,
+        'type': 'artist',
+      });
+
+      try {
+        final response = await http.get(
+          searchUri,
+          headers: {'Authorization': 'Bearer $token'},
+        );
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final items = data['artists']?['items'] as List?;
+          if (items != null && items.isNotEmpty) {
+            return items.first as Map<String, dynamic>;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -426,7 +551,7 @@ class SpotifyService {
 
     if (cleanId.isEmpty) return [];
 
-    String? token = await _getAccessToken();
+    final token = await _getAccessToken();
     if (token == null) return [];
 
     final tracksUri = Uri.https(
@@ -435,20 +560,10 @@ class SpotifyService {
     );
 
     try {
-      var response = await http.get(
+      final response = await http.get(
         tracksUri,
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (response.statusCode == 401) {
-        token = await _getAccessToken(forceRefresh: true);
-        if (token != null) {
-          response = await http.get(
-            tracksUri,
-            headers: {'Authorization': 'Bearer $token'},
-          );
-        }
-      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -535,45 +650,5 @@ class SpotifyService {
     final formattedDuration = '$minutes:${seconds.toString().padLeft(2, '0')}';
 
     return Song(title: json['name'] ?? 'Untitled', duration: formattedDuration);
-  }
-
-  static Future<Map<String, dynamic>?> getArtistProfile(
-    String artistId,
-    String artistName,
-  ) async {
-    final token = await _getAccessToken();
-    if (token == null) return null;
-
-    if (artistId.length > 15) {
-      final idUrl = 'https://api.spotify.com/v1/artists/$artistId';
-      try {
-        final response = await http.get(
-          Uri.parse(idUrl),
-          headers: {'Authorization': 'Bearer $token'},
-        );
-        if (response.statusCode == 200) {
-          return jsonDecode(response.body);
-        }
-      } catch (_) {}
-    }
-
-    final searchUrl =
-        'https://api.spotify.com/v1/search?q=${Uri.encodeComponent(artistName)}&type=artist&limit=1';
-
-    try {
-      final response = await http.get(
-        Uri.parse(searchUrl),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final items = data['artists']?['items'] as List?;
-        if (items != null && items.isNotEmpty) {
-          return items.first as Map<String, dynamic>;
-        }
-      }
-    } catch (_) {}
-
-    return null;
   }
 }
