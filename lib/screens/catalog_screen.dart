@@ -19,8 +19,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Timer? _debounce;
   bool _isLoading = false;
 
-  // True while showing search results (artists + albums sections).
-  // False while showing the trending/mock browse grid (albums only).
+  // True while searching (shows artist avatars + album grid)
+  // False when displaying newest releases feed
   bool _isSearching = false;
 
   List<Map<String, dynamic>> _displayAlbums = [];
@@ -29,30 +29,30 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTrendingAlbums();
+    _loadNewestReleases();
   }
 
-  Future<void> _loadTrendingAlbums() async {
+  Future<void> _loadNewestReleases() async {
     setState(() {
       _isLoading = true;
       _isSearching = false;
       _displayArtists = [];
     });
 
-    debugPrint('[CatalogScreen] Fetching trending albums via Spotify...');
-    final trending = await SpotifyService.getTrendingAlbums(filter: 'tag:new');
+    debugPrint('[CatalogScreen] Fetching newest releases via Spotify...');
+    final newest = await SpotifyService.getTrendingAlbums();
 
     if (!mounted) return;
     setState(() {
       _isLoading = false;
-      if (trending.isNotEmpty) {
-        _displayAlbums = trending;
+      if (newest.isNotEmpty) {
+        _displayAlbums = newest;
         debugPrint(
-          '[CatalogScreen] Loaded ${trending.length} live trending albums.',
+          '[CatalogScreen] Loaded ${newest.length} live newest album releases.',
         );
       } else {
         debugPrint(
-          '[CatalogScreen] Trending empty, falling back to mock dataset.',
+          '[CatalogScreen] Newest releases empty/offline, falling back to mock data.',
         );
         _displayAlbums = mockArtists.expand((artist) {
           return artist.albums.map(
@@ -64,15 +64,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   void _onSearchChanged(String query) {
-    debugPrint('[CatalogScreen] Search input changed: "$query"');
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () async {
       final trimmed = query.trim();
       if (trimmed.isEmpty) {
-        debugPrint(
-          '[CatalogScreen] Search query empty, loading trending feed.',
-        );
-        _loadTrendingAlbums();
+        _loadNewestReleases();
         return;
       }
 
@@ -81,11 +77,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
         _isSearching = true;
       });
 
-      debugPrint(
-        '[CatalogScreen] Querying Spotify for "$trimmed" (artists + albums)...',
-      );
-
-      // Fetch both in parallel — one slow/failed request shouldn't block the other.
       final results = await Future.wait([
         SpotifyService.searchArtists(trimmed),
         SpotifyService.searchAlbums(trimmed),
@@ -96,10 +87,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
         _isLoading = false;
         _displayArtists = results[0] as List<Artist>;
         _displayAlbums = results[1] as List<Map<String, dynamic>>;
-        debugPrint(
-          '[CatalogScreen] Search results: ${_displayArtists.length} artists, '
-          '${_displayAlbums.length} albums.',
-        );
       });
     });
   }
@@ -126,7 +113,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
-  /// Opens the artist's full profile screen (bio, discography, concerts).
   void _onArtistTapped(Artist artist) {
     Navigator.push(
       context,
@@ -137,15 +123,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0E0E0E),
       appBar: AppBar(
         title: const Text(
           'Discography',
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -0.5),
         ),
+        backgroundColor: const Color(0xFF121212),
+        elevation: 0,
       ),
       body: Column(
         children: [
-          // Live Spotify Search Bar
+          // Search Input Bar
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -164,7 +153,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         icon: const Icon(Icons.clear, color: Colors.grey),
                         onPressed: () {
                           _searchController.clear();
-                          _loadTrendingAlbums();
+                          _loadNewestReleases();
                         },
                       )
                     : null,
@@ -186,149 +175,197 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
 
           Expanded(
-            child:
-                (_displayAlbums.isEmpty &&
-                    _displayArtists.isEmpty &&
-                    !_isLoading)
-                ? Center(
-                    child: Text(
-                      'No results found',
-                      style: TextStyle(color: Colors.grey[500]),
-                    ),
-                  )
-                : CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      // Artists section — only shown during search, and
-                      // only when there are artist results to show.
-                      if (_isSearching && _displayArtists.isNotEmpty) ...[
-                        const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: RefreshIndicator(
+              color: const Color(0xFF1DB954),
+              backgroundColor: const Color(0xFF1E1E1E),
+              displacement: 24,
+              onRefresh: () async {
+                if (_isSearching) {
+                  _searchController.clear();
+                }
+                await _loadNewestReleases();
+              },
+              child:
+                  (_displayAlbums.isEmpty &&
+                      _displayArtists.isEmpty &&
+                      !_isLoading)
+                  ? LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Center(
                             child: Text(
-                              'Artists',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              'No results found',
+                              style: TextStyle(color: Colors.grey[500]),
                             ),
                           ),
                         ),
-                        SliverToBoxAdapter(
-                          child: SizedBox(
-                            height: 108,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
+                      ),
+                    )
+                  : CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      slivers: [
+                        // Artists Row (Search Mode Only)
+                        if (_isSearching && _displayArtists.isNotEmpty) ...[
+                          const SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                              child: Text(
+                                'Artists',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
-                              itemCount: _displayArtists.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 12),
-                              itemBuilder: (context, index) {
-                                final artist = _displayArtists[index];
-                                return GestureDetector(
-                                  onTap: () => _onArtistTapped(artist),
-                                  child: SizedBox(
-                                    width: 76,
-                                    child: Column(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 32,
-                                          backgroundColor: const Color(
-                                            0xFF1DB954,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: SizedBox(
+                              height: 108,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                itemCount: _displayArtists.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 12),
+                                itemBuilder: (context, index) {
+                                  final artist = _displayArtists[index];
+                                  return GestureDetector(
+                                    onTap: () => _onArtistTapped(artist),
+                                    child: SizedBox(
+                                      width: 76,
+                                      child: Column(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 32,
+                                            backgroundColor: const Color(
+                                              0xFF1DB954,
+                                            ),
+                                            backgroundImage:
+                                                artist.imageUrl != null
+                                                ? NetworkImage(artist.imageUrl!)
+                                                : null,
+                                            child: artist.imageUrl == null
+                                                ? Text(
+                                                    artist.name.isNotEmpty
+                                                        ? artist.name[0]
+                                                              .toUpperCase()
+                                                        : '?',
+                                                    style: const TextStyle(
+                                                      fontSize: 24,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black,
+                                                    ),
+                                                  )
+                                                : null,
                                           ),
-                                          backgroundImage:
-                                              artist.imageUrl != null
-                                              ? NetworkImage(artist.imageUrl!)
-                                              : null,
-                                          child: artist.imageUrl == null
-                                              ? Text(
-                                                  artist.name.isNotEmpty
-                                                      ? artist.name[0]
-                                                            .toUpperCase()
-                                                      : '?',
-                                                  style: const TextStyle(
-                                                    fontSize: 24,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black,
-                                                  ),
-                                                )
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          artist.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 12),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            artist.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: Divider(
+                              color: Colors.white12,
+                              height: 24,
+                              indent: 16,
+                              endIndent: 16,
+                            ),
+                          ),
+                        ],
+
+                        // Section Header: "Newest Releases" vs "Albums"
+                        if (_displayAlbums.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                              child: Row(
+                                children: [
+                                  if (!_isSearching) ...[
+                                    const Icon(
+                                      Icons.new_releases_rounded,
+                                      color: Color(0xFF1DB954),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Text(
+                                    _isSearching ? 'Albums' : 'Newest Releases',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      // Albums section header
-                      if (_displayAlbums.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            child: Text(
-                              _isSearching ? 'Albums' : 'Trending',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                ],
                               ),
                             ),
                           ),
-                        ),
 
-                      // Albums grid
-                      if (_displayAlbums.isNotEmpty)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  childAspectRatio: 0.75,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                ),
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final item = _displayAlbums[index];
-                              final Artist artist = item['artist'];
-                              final Album album = item['album'];
-                              final heroTag = 'catalog_${album.id}_$index';
+                        // Albums Grid
+                        if (_displayAlbums.isNotEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 0.75,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                  ),
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final item = _displayAlbums[index];
+                                final Artist artist = item['artist'];
+                                final Album album = item['album'];
+                                final heroTag =
+                                    'catalog_${album.id}_${index}_${_isSearching ? "search" : "newest"}';
 
-                              return GestureDetector(
-                                onTap: () {
-                                  debugPrint(
-                                    '[CatalogScreen] Tapped album: "${album.title}" by "${artist.name}"',
-                                  );
-                                  _openAlbum(context, artist, album, heroTag);
-                                },
-                                child: AlbumCard(
-                                  heroTag: heroTag,
-                                  title: album.title,
-                                  artist: artist.name,
-                                  coverUrl: album.coverUrl,
-                                ),
-                              );
-                            }, childCount: _displayAlbums.length),
+                                return GestureDetector(
+                                  onTap: () {
+                                    _openAlbum(context, artist, album, heroTag);
+                                  },
+                                  child: AlbumCard(
+                                    heroTag: heroTag,
+                                    title: album.title,
+                                    artist: artist.name,
+                                    coverUrl: album.coverUrl,
+                                  ),
+                                );
+                              }, childCount: _displayAlbums.length),
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
         ],
       ),

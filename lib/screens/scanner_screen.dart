@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../data/mock_data.dart';
 import '../models/music_data_models.dart';
@@ -22,9 +23,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (barcodes.isEmpty) return;
 
     final String? scannedValue = barcodes.first.rawValue;
-    if (scannedValue == null) return;
+    if (scannedValue == null || scannedValue.isEmpty) return;
 
     setState(() => _isProcessing = true);
+
+    // Trigger physical vibration on scan match
+    HapticFeedback.vibrate();
 
     Album? matchedAlbum;
     Artist? matchedArtist;
@@ -49,8 +53,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
         matchedAlbum = spotifyResult['album'];
         matchedArtist = spotifyResult['artist'];
       }
-    }
-*/
+    } */
+
     // 3. Fallback
     matchedAlbum ??= allAlbums.first;
     matchedArtist ??= mockArtists.first;
@@ -59,6 +63,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         title: const Text('Album Identified!'),

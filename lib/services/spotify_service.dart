@@ -55,12 +55,95 @@ class SpotifyService {
   }
 
   // ---------------------------------------------------------------------------
-  // TRENDING / NEW RELEASES SEED
+  // NEWEST RELEASES (GET /v1/search?q=tag:new&type=album)
   // ---------------------------------------------------------------------------
-  static Future<List<Map<String, dynamic>>> getTrendingAlbums({
-    String filter = 'tag:new',
-  }) async {
-    return searchAlbums(filter);
+  // ---------------------------------------------------------------------------
+  // NEWEST RELEASES (Aggregates multiple tag:new search queries in parallel)
+  // ---------------------------------------------------------------------------
+  static Future<List<Map<String, dynamic>>> getTrendingAlbums() async {
+    final token = await _getAccessToken();
+    if (token == null) return [];
+
+    // Query multiple tag:new genre buckets to aggregate a full 40-60+ release feed
+    final categories = [
+      'tag:new',
+      'tag:new pop',
+      'tag:new hip-hop',
+      'tag:new rock',
+      'tag:new electronic',
+      'tag:new indie',
+      'tag:new rap',
+      'tag:new dance',
+    ];
+
+    try {
+      final responses = await Future.wait(
+        categories.map((q) {
+          final uri = Uri.https('api.spotify.com', '/v1/search', {
+            'q': q,
+            'type': 'album',
+          });
+          return http.get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          );
+        }),
+      );
+
+      final seenIds = <String>{};
+      final seenTitles = <String>{};
+      final List<Map<String, dynamic>> allAlbums = [];
+
+      for (final response in responses) {
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final List items = data['albums']?['items'] ?? [];
+
+          for (final item in items) {
+            final String id = item['id'] ?? '';
+            final String title = (item['name'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+
+            if (id.isNotEmpty && seenIds.add(id) && seenTitles.add(title)) {
+              final album = _parseAlbum(item);
+              final artistList = item['artists'] as List? ?? [];
+              final String artistName = artistList.isNotEmpty
+                  ? artistList[0]['name']
+                  : 'Unknown Artist';
+              final String artistId = artistList.isNotEmpty
+                  ? artistList[0]['id']
+                  : '';
+
+              final artist = Artist(
+                id: artistId,
+                name: artistName,
+                genre: 'New Release',
+                biography: '$artistName on Spotify.',
+                wikipediaUrl:
+                    'https://en.wikipedia.org/wiki/${Uri.encodeComponent(artistName.replaceAll(' ', '_'))}',
+                albums: [album],
+                upcomingConcerts: const [],
+              );
+
+              allAlbums.add({'album': album, 'artist': artist});
+            }
+          }
+        }
+      }
+
+      if (allAlbums.isNotEmpty) {
+        return allAlbums;
+      }
+    } catch (e) {
+      debugPrint('[Spotify tag:new Aggregation Exception] $e');
+    }
+
+    return [];
   }
 
   // ---------------------------------------------------------------------------
