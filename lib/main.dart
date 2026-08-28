@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:music_database_app/screens/splash_screen.dart';
 import 'screens/main_navigation_screen.dart';
 
 void main() {
@@ -28,7 +29,7 @@ class MusicDatabaseApp extends StatelessWidget {
           centerTitle: false,
         ),
       ),
-      home: const MainNavigationScreen(),
+      home: const SplashScreen(),
     );
   }
 }

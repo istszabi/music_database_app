@@ -22,7 +22,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         children: [
           const CatalogScreen(),
           const FavoritesScreen(),
-          // Camera only mounts and runs when the Scan tab is actively selected
           _currentIndex == 2 ? const ScannerScreen() : const SizedBox.shrink(),
           const SettingsScreen(),
         ],

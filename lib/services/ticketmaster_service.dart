@@ -3,21 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/music_data_models.dart';
 
-/// Wraps calls to the Ticketmaster Discovery API.
-///
-/// Pass the API key in via --dart-define so it never ends up hardcoded
-/// in source (and therefore never in your git history):
-///   flutter run --dart-define=TICKETMASTER_API_KEY=your_key_here
 class TicketmasterService {
   static const String _apiKey = String.fromEnvironment('TICKETMASTER_API_KEY');
 
   static const String _baseUrl =
       'https://app.ticketmaster.com/discovery/v2/events.json';
 
-  /// Fetches upcoming events for [artistName] and maps them to
-  /// [ConcertLocation]s. Returns an empty list (never throws) if the
-  /// request fails, the key is missing, or there are no results —
-  /// callers can fall back to mock data on an empty list.
   static Future<List<ConcertLocation>> fetchUpcomingConcerts(
     String artistName,
   ) async {
@@ -62,9 +53,6 @@ class TicketmasterService {
 
       final Map<String, dynamic> body = jsonDecode(response.body);
 
-      // Ticketmaster's own reported total, regardless of what _embedded
-      // contains — useful to confirm whether the API found anything at
-      // all vs. our parsing dropping valid results.
       final totalElements = body['page']?['totalElements'];
       debugPrint('[Ticketmaster] page.totalElements: $totalElements');
 
@@ -112,9 +100,6 @@ class TicketmasterService {
     }
   }
 
-  /// Returns null instead of throwing if any expected field is missing —
-  /// the Discovery API doesn't guarantee _embedded/venues/location on
-  /// every event (e.g. TBD venues, placeholder test events).
   static ConcertLocation? _tryParseEvent(Map<String, dynamic> event) {
     try {
       final List<dynamic>? venues = event['_embedded']?['venues'];

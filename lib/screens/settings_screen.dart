@@ -14,13 +14,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Configurable Settings State
   bool _preferSpotifyApp = true;
   bool _vibrateOnScan = true;
   bool _autoOpenScannedLinks = true;
   bool _highQualityImages = true;
 
-  // Diagnostic State
   bool _isTestingApi = false;
   String _apiStatus = 'Untested';
   Color _apiStatusColor = Colors.grey;
@@ -204,9 +202,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 40),
         children: [
-          // -------------------------------------------------------------------
-          // API & CONNECTIVITY
-          // -------------------------------------------------------------------
           _buildSectionHeader('API & Connectivity'),
           _buildCard(
             children: [
@@ -283,10 +278,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-
-          // -------------------------------------------------------------------
-          // SCANNER & HARDWARE
-          // -------------------------------------------------------------------
           _buildSectionHeader('Scanner & Hardware'),
           _buildCard(
             children: [
@@ -326,10 +317,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-
-          // -------------------------------------------------------------------
-          // DATA & STORAGE
-          // -------------------------------------------------------------------
           _buildSectionHeader('Data & Storage'),
           _buildCard(
             children: [
@@ -390,10 +377,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-
-          // -------------------------------------------------------------------
-          // ABOUT & ATTRIBUTION
-          // -------------------------------------------------------------------
           _buildSectionHeader('About & Attribution'),
           _buildCard(
             children: [

@@ -206,7 +206,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 final List<Album> albums =
                     discoSnapshot.data ?? widget.artist.albums;
 
-                // Calculate real metrics from Spotify discography
                 final int albumCount = albums.length;
                 final List<int> releaseYears =
                     albums
@@ -235,8 +234,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Artist Header (Avatar + Name + Verified Badge)
                       Row(
                         children: [
                           ClipRRect(
@@ -322,7 +319,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                       ),
                       const SizedBox(height: 18),
 
-                      // Real Catalog Statistics Card
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -334,7 +330,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                         ),
                         child: Row(
                           children: [
-                            // Releases Stat
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,7 +373,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                               color: Colors.white12,
                             ),
                             const SizedBox(width: 16),
-                            // Career Debut Stat
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +415,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                       const Divider(color: Colors.white10),
                       const SizedBox(height: 12),
 
-                      // Live Wikipedia Biography
                       const Text(
                         'About Artist',
                         style: TextStyle(
@@ -459,7 +452,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Read on Wikipedia Button
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -492,7 +484,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Spotify Discography
                       const Text(
                         'Discography on Spotify',
                         style: TextStyle(
@@ -575,7 +566,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Upcoming Concerts
                       const Text(
                         'Upcoming Concerts',
                         style: TextStyle(
@@ -702,7 +692,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Collapsible Sliver App Bar
           SliverAppBar(
             expandedHeight: 380,
             pinned: true,
@@ -781,7 +770,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             ),
           ),
 
-          // Main Detail Body
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -802,7 +790,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // Clickable Artist Badge Pill
                   InkWell(
                     onTap: () => _showArtistDetails(context),
                     borderRadius: BorderRadius.circular(30),
@@ -843,8 +830,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Liner Notes
                   GlassContainer(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,7 +866,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Spotify Button
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -922,7 +906,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // Tracklist Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -945,7 +928,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             ),
           ),
 
-          // Tracklist Items
           if (_isLoadingTracks)
             const SliverToBoxAdapter(
               child: Center(

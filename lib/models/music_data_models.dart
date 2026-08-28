@@ -50,8 +50,6 @@ class Artist {
   final List<Album> albums;
   final List<ConcertLocation> upcomingConcerts;
 
-  /// Spotify artist image URL. Null for mock-data artists (no network
-  /// image available) — UI should fall back to an initial-letter avatar.
   final String? imageUrl;
 
   const Artist({

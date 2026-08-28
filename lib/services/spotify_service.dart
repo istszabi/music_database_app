@@ -9,10 +9,6 @@ class SpotifyService {
 
   static String? _accessToken;
   static DateTime? _tokenExpiry;
-
-  // ---------------------------------------------------------------------------
-  // AUTHENTICATION (Client Credentials Flow)
-  // ---------------------------------------------------------------------------
   static Future<String?> _getAccessToken({bool forceRefresh = false}) async {
     if (!forceRefresh &&
         _accessToken != null &&
@@ -53,18 +49,10 @@ class SpotifyService {
     }
     return null;
   }
-
-  // ---------------------------------------------------------------------------
-  // NEWEST RELEASES (GET /v1/search?q=tag:new&type=album)
-  // ---------------------------------------------------------------------------
-  // ---------------------------------------------------------------------------
-  // NEWEST RELEASES (Aggregates multiple tag:new search queries in parallel)
-  // ---------------------------------------------------------------------------
   static Future<List<Map<String, dynamic>>> getTrendingAlbums() async {
     final token = await _getAccessToken();
     if (token == null) return [];
 
-    // Query multiple tag:new genre buckets to aggregate a full 40-60+ release feed
     final categories = [
       'tag:new',
       'tag:new pop',
@@ -146,9 +134,6 @@ class SpotifyService {
     return [];
   }
 
-  // ---------------------------------------------------------------------------
-  // UNIFIED CATALOG SEARCH (ARTISTS + ALBUMS)
-  // ---------------------------------------------------------------------------
   static Future<Map<String, dynamic>> searchCatalog(String query) async {
     final cleanQuery = query
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
@@ -248,9 +233,6 @@ class SpotifyService {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // SEARCH ARTISTS (GET /v1/search?type=artist)
-  // ---------------------------------------------------------------------------
   static Future<List<Artist>> searchArtists(String query) async {
     final cleanQuery = query
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
@@ -283,9 +265,6 @@ class SpotifyService {
     return [];
   }
 
-  // ---------------------------------------------------------------------------
-  // SEARCH ALBUMS (GET /v1/search?type=album)
-  // ---------------------------------------------------------------------------
   static Future<List<Map<String, dynamic>>> searchAlbums(String query) async {
     final cleanQuery = query
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), ' ')
@@ -339,9 +318,6 @@ class SpotifyService {
     return [];
   }
 
-  // ---------------------------------------------------------------------------
-  // GET AN ARTIST (GET /v1/artists/{id})
-  // ---------------------------------------------------------------------------
   static Future<Artist?> getArtist(String artistId) async {
     final cleanId = artistId
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), '')
@@ -370,12 +346,6 @@ class SpotifyService {
     return null;
   }
 
-  // ---------------------------------------------------------------------------
-  // GET AN ARTIST'S ALBUMS (GET /v1/artists/{id}/albums)
-  // ---------------------------------------------------------------------------
-  // ---------------------------------------------------------------------------
-  // GET AN ARTIST'S ALBUMS (GET /v1/artists/{id}/albums)
-  // ---------------------------------------------------------------------------
   static Future<List<Album>> getArtistAlbums(
     String artistId, {
     String? artistName,
@@ -387,7 +357,6 @@ class SpotifyService {
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), '')
         .trim();
 
-    // 1. Resolve true Spotify Artist ID if artistId is from mock data
     if (resolvedId.length < 15 && artistName != null && artistName.isNotEmpty) {
       try {
         final cleanName = artistName
@@ -414,12 +383,10 @@ class SpotifyService {
       }
     }
 
-    // 2. Fetch full catalog across multiple pages (up to 100 releases)
     if (resolvedId.length >= 15) {
       try {
         final List<dynamic> allRawItems = [];
 
-        // Page 1 (first 50 items: studio albums & singles)
         final uriPage1 = Uri.https(
           'api.spotify.com',
           '/v1/artists/$resolvedId/albums',
@@ -441,7 +408,6 @@ class SpotifyService {
 
           final int total = data1['total'] ?? items1.length;
 
-          // Page 2 (next 50 items if the artist has > 50 releases)
           if (total > 50) {
             final uriPage2 = Uri.https(
               'api.spotify.com',
@@ -462,7 +428,6 @@ class SpotifyService {
             }
           }
         } else {
-          // Fallback without group filters if region restricted
           final fallbackUri = Uri.https(
             'api.spotify.com',
             '/v1/artists/$resolvedId/albums',
@@ -481,8 +446,6 @@ class SpotifyService {
           final parsed = allRawItems
               .map<Album>((item) => _parseAlbum(item))
               .toList();
-
-          // Deduplicate duplicate Deluxe/Remaster editions of the same album
           final seenTitles = <String>{};
           final List<Album> uniqueAlbums = [];
 
@@ -508,8 +471,6 @@ class SpotifyService {
               uniqueAlbums.add(album);
             }
           }
-
-          // Sort descending by release year (newest first)
           uniqueAlbums.sort((a, b) {
             final yearA = int.tryParse(a.releaseYear) ?? 0;
             final yearB = int.tryParse(b.releaseYear) ?? 0;
@@ -523,7 +484,6 @@ class SpotifyService {
       }
     }
 
-    // 3. Fallback: Search all albums by artist name
     if (artistName != null && artistName.isNotEmpty) {
       try {
         final cleanName = artistName
@@ -570,9 +530,6 @@ class SpotifyService {
     return [];
   }
 
-  // ---------------------------------------------------------------------------
-  // GET AN ARTIST'S PROFILE (GET /v1/artists/{id})
-  // ---------------------------------------------------------------------------
   static Future<Map<String, dynamic>?> getArtistProfile(
     String artistId,
     String artistName,
@@ -624,9 +581,6 @@ class SpotifyService {
     return null;
   }
 
-  // ---------------------------------------------------------------------------
-  // GET AN ALBUM'S TRACKS (GET /v1/albums/{id}/tracks)
-  // ---------------------------------------------------------------------------
   static Future<List<Song>> getAlbumTracks(String albumId) async {
     final cleanId = albumId
         .replaceAll(RegExp(r'[\u0000-\u001F\u007F-\u009F\u00A0]'), '')
@@ -662,9 +616,6 @@ class SpotifyService {
   static Future<List<Song>> fetchAlbumTracks(String albumId) =>
       getAlbumTracks(albumId);
 
-  // ---------------------------------------------------------------------------
-  // PARSER HELPERS
-  // ---------------------------------------------------------------------------
   static Album _parseAlbum(Map<String, dynamic> json) {
     final images = json['images'] as List? ?? [];
     final coverUrl = images.isNotEmpty ? images[0]['url'] : '';

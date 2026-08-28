@@ -18,9 +18,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   bool _isLoading = false;
-
-  // True while searching (shows artist avatars + album grid)
-  // False when displaying newest releases feed
   bool _isSearching = false;
 
   List<Map<String, dynamic>> _displayAlbums = [];
@@ -134,7 +131,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
       body: Column(
         children: [
-          // Search Input Bar
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -212,7 +208,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         parent: BouncingScrollPhysics(),
                       ),
                       slivers: [
-                        // Artists Row (Search Mode Only)
                         if (_isSearching && _displayArtists.isNotEmpty) ...[
                           const SliverToBoxAdapter(
                             child: Padding(
@@ -298,8 +293,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
                             ),
                           ),
                         ],
-
-                        // Section Header: "Newest Releases" vs "Albums"
                         if (_displayAlbums.isNotEmpty)
                           SliverToBoxAdapter(
                             child: Padding(
@@ -327,7 +320,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
                             ),
                           ),
 
-                        // Albums Grid
                         if (_displayAlbums.isNotEmpty)
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

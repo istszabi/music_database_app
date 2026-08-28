@@ -6,9 +6,6 @@ import '../models/music_data_models.dart';
 import '../services/ticketmaster_service.dart';
 
 class MapScreen extends StatefulWidget {
-  /// The artist to show concerts for. MapScreen is always opened for a
-  /// specific artist (from the album/profile screens) — there's no
-  /// "show everyone" mode anymore since the global Concerts tab was removed.
   final String initialArtistName;
 
   const MapScreen({super.key, required this.initialArtistName});
@@ -79,10 +76,6 @@ class _MapScreenState extends State<MapScreen> {
                   initialZoom: points.length == 1 ? 8 : 3,
                   minZoom: 3,
                   maxZoom: 17,
-                  // Hard-constrains the camera to valid world bounds so a
-                  // fast zoom-out gesture can never push the map into a
-                  // state where flutter_map's internal tile-bounds math
-                  // produces NaN/Infinity (the crash you hit).
                   cameraConstraint: CameraConstraint.contain(
                     bounds: LatLngBounds(
                       const LatLng(-85, -180),
@@ -123,8 +116,6 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ],
               ),
-
-              // Info card for the selected marker
               if (_selected != null)
                 Positioned(
                   left: 16,

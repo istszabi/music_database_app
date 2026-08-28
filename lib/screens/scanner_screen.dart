@@ -27,13 +27,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     setState(() => _isProcessing = true);
 
-    // Trigger physical vibration on scan match
     HapticFeedback.vibrate();
 
     Album? matchedAlbum;
     Artist? matchedArtist;
 
-    // 1. Try local match first
     final allAlbums = mockArtists.expand((a) => a.albums).toList();
     for (final alb in allAlbums) {
       if (alb.id.toLowerCase() == scannedValue.toLowerCase() ||
@@ -46,7 +44,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
     }
 
-    // 2. Try Spotify UPC / Search API
     /* if (matchedAlbum == null) {
       final spotifyResult = await SpotifyService.searchByBarcode(scannedValue);
       if (spotifyResult != null) {
@@ -55,7 +52,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
     } */
 
-    // 3. Fallback
     matchedAlbum ??= allAlbums.first;
     matchedArtist ??= mockArtists.first;
 

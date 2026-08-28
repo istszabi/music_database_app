@@ -27,9 +27,6 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
   }
 
   Future<_ArtistProfileData> _loadProfile() async {
-    // Search results carry an id/name/genre but no bio detail or albums —
-    // fill those in with real calls, and fall back to what we already
-    // have if any individual call comes back empty.
     final results = await Future.wait([
       SpotifyService.getArtistProfile(widget.artist.id, widget.artist.name),
       SpotifyService.getArtistAlbums(
@@ -116,7 +113,6 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   children: [
                     CircleAvatar(
@@ -196,7 +192,6 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                 const Divider(color: Colors.white10),
                 const SizedBox(height: 12),
 
-                // Biography
                 const Text(
                   'Biography',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -242,7 +237,6 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
 
                 const SizedBox(height: 28),
 
-                // Discography
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -312,7 +306,6 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
 
                 const SizedBox(height: 28),
 
-                // Upcoming Concerts
                 const Text(
                   'Upcoming Concerts',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
